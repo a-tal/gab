@@ -85,7 +85,7 @@ class Client(Helper):
     def _discovery(self):
         """Discover all API endpoints to configure the rest of the Client."""
 
-        collections = self._parse_api_collections(
+        collections = self._parse_api_collections(  # pylint: disable=E1128
             self._options.api_collections or self._get_api_collections()
         )
 
