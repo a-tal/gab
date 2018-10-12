@@ -74,3 +74,13 @@ Yeah, this client library doesn't do auth, never write your own auth.
 Instead, use someone else's auth, and pass in a session object.
 
 Please see [example.py](example.py) for a full working CLI example with authentication.
+
+
+## Installation
+
+`pip install gab`
+
+
+## Requirements
+
+Python3.6+
