@@ -1,0 +1,15 @@
+language: python
+dist: xenial
+sudo: required
+python:
+  - "3.7"
+env:
+  - TOXENV=python3.7
+  - TOXENV=pylint
+  - TOXENV=flake8
+before_install:
+  - pip install -U coveralls pytest pytest-cov tox
+script:
+  - tox
+after_success:
+  - coveralls
