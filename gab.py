@@ -64,12 +64,44 @@ class Client(Helper):
 
     Initialized with an optional gab.Options instance.
 
-    If Options are not passed in, the Client will only populate
-    routes which do not require authentication.
+    If Options are not passed in, the Client will be unable to
+    successfully request operations which require authentication.
+    In order for authentication to succeed, a requests.Session
+    object from an auth provider should be passed in with Options.
+
+    You probably want to cache the collections.json object if you're
+    distributing this client. If you don't, it's possible that the
+    method names change someday due to changes in the API spec.
+
+    To find out what collections are available:
+
+    >>> import gab
+    >>> c = gab.Client()
+    >>> c.help()
+
+    To find out what operations are available inside a collection:
+
+    >>> c.<collection>.help()
+
+    To find out what arguments are defined for an operations:
+
+    >>> c.<collection>.<operation>.help()
+
+    To call an operation/make an API request:
+
+    >>> c.<collection>.<operation>(*path_args, body=None, headers={}, **qsargs)
+
+    Where:
+        `<collection>` is a name of an API collection
+        `<operation>` is a name of an API operation
+        `path_args` are anonymous positional arguments required by the path
+        `body` is a JSON serializable object to send as the request body
+        `headers` is a dictionary of {str: str} additional headers to send
+        `**qsargs` are any other query string arguments defined in spec
     """
 
     def __init__(self, options: Options = None):
-        """Initialize the options client and run discovery."""
+        """Initialize the options session and run discovery."""
 
         if options is None:
             options = Options()
@@ -78,29 +110,25 @@ class Client(Helper):
             options.session.headers["User-Agent"] = options.user_agent
 
         options.session.headers["Accept"] = "application/json"
+
         self._options = options
 
-        self._discovery()
+        collections = options.api_collections or self._get_api_collections()
+        names = []
+        for collection in collections["item"]:
+            col = Collection(collection["name"], collection.get("description"))
+            for operation in collection["item"]:
+                oper = Operation(self, operation, collection["name"])
+                col._add(oper)
+            col._finish()
+            names.append(col._name)
+            setattr(self, col._name, col)
 
-    def _discovery(self):
-        """Discover all API endpoints to configure the rest of the Client."""
-
-        collections = self._parse_api_collections(  # pylint: disable=E1128
-            self._options.api_collections or self._get_api_collections()
-        )
-
-        for name, collection in collections.items():
-            setattr(self, name, collection)
-
-        # ensures these methods are only called once for this instance
-        self._discovery = null
-        self._parse_api_collections = null
-        # pylint: disable=attribute-defined-outside-init
         self.__doc__ = "Gab.com API Client {}.{}".format(
             __version__,
             "\n\nThe following collections are known:\n  {}".format(
-                "\n  ".join(sorted(collections)),
-            ) if collections else "",
+                "\n  ".join(sorted(names)),
+            ) if names else "",
         )
 
     def _request(self, uri: str, method: str = "get", **kwargs) -> (Response):
@@ -119,9 +147,6 @@ class Client(Helper):
 
         Returns:
             the API collections response object (dict)
-
-        Raises:
-            gab.Error
         """
 
         res = self._request(self._options.base_uri)
@@ -131,26 +156,6 @@ class Client(Helper):
             soup.find("meta", attrs={"name": "ownerId"}).attrs["content"],
             soup.find("meta", attrs={"name": "publishedId"}).attrs["content"],
         )).json()
-
-    def _parse_api_collections(self, collections: dict) -> (dict):
-        """Parse the discovered API collections.
-
-        Args:
-            collections: the API collections response object (dict)
-
-        Returns:
-            dictionary of {name: Collection} for all API operations
-        """
-
-        methods = {}
-        for collection in collections["item"]:
-            col = Collection(collection["name"], collection.get("description"))
-            for operation in collection["item"]:
-                oper = Operation(self, operation, collection["name"])
-                col._add(oper)
-            col._finish()
-            methods[col._name] = col
-        return methods
 
 
 class Operation(Helper):  # pylint: disable=too-many-instance-attributes
@@ -226,8 +231,8 @@ class Operation(Helper):  # pylint: disable=too-many-instance-attributes
 
         Kwargs:
             headers: dictionary of additional headers to add
-            body: string or object which can be JSON dumped
-            *: any other query string arguments
+            body: object to use as a JSON body, if applicable
+            *: any other query string or named path arguments
 
         Returns:
             requests.Response object

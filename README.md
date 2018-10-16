@@ -18,10 +18,7 @@ Basic usage example:
 
 ```python
 >>> import gab
->>> client = gab.Client(gab.Options(
-...   ...
-... ))
->>>
+>>> client = gab.Client()
 >>> client.help()
 Gab.com API Client 0.0.1.
 
